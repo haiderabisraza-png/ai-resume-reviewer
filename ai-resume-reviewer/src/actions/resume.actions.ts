@@ -62,7 +62,7 @@ export async function uploadAndAnalyzeResume(
       improvements: analysis.improvements,
       keywordMatches: analysis.keywordMatches,
       missingKeywords: analysis.missingKeywords,
-      aiResponse: analysis as Record<string, unknown>,
+     aiResponse: JSON.parse(JSON.stringify(analysis)),
       ...(jobDescription?.trim() && jobMatch
         ? {
             jobDescription: {
