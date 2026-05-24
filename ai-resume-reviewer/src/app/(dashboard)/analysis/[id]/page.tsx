@@ -10,14 +10,15 @@ export const metadata: Metadata = { title: "Resume Analysis" };
 export default async function AnalysisPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params;
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
   const review = await prisma.review.findFirst({
     where: {
-      id: params.id,
+      id,
       resume: { userId: session.user.id },
     },
     include: {
@@ -29,14 +30,16 @@ export default async function AnalysisPage({
   if (!review) notFound();
 
   const ai = review.aiResponse as Record<string, unknown>;
+  const summary = typeof ai.summary === "string" ? ai.summary : "";
+  const formattingFeedback = typeof ai.formattingFeedback === "string" ? ai.formattingFeedback : "";
+  const readabilityScore = typeof ai.readabilityScore === "number" ? ai.readabilityScore : 0;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-in pb-10">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <Link href="/reviews" className="text-sm text-surface-500 hover:text-surface-700 flex items-center gap-1 mb-2">
-            ← Back to Reviews
+            Back to Reviews
           </Link>
           <h1 className="page-title">{review.resume.title}</h1>
           <p className="text-sm text-surface-400 mt-1">Analyzed on {formatDate(review.createdAt)}</p>
@@ -46,49 +49,39 @@ export default async function AnalysisPage({
         </Link>
       </div>
 
-      {/* Score cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <ScoreCard label="Overall Score" score={review.overallScore} />
         <ScoreCard label="ATS Score" score={review.atsScore} />
-        {(ai.readabilityScore as number) && (
-          <ScoreCard label="Readability" score={ai.readabilityScore as number} />
+        {readabilityScore > 0 && (
+          <ScoreCard label="Readability" score={readabilityScore} />
         )}
         {review.jobDescription && (
           <ScoreCard label="Job Match" score={review.jobDescription.matchScore} />
         )}
       </div>
 
-      {/* Summary */}
-      {ai.summary && (
+      {summary && (
         <div className="card p-6">
-          <h2 className="font-semibold text-surface-900 mb-3 flex items-center gap-2">
-            <span>💡</span> AI Summary
-          </h2>
-          <p className="text-surface-600 text-sm leading-relaxed">{ai.summary as string}</p>
+          <h2 className="font-semibold text-surface-900 mb-3">AI Summary</h2>
+          <p className="text-surface-600 text-sm leading-relaxed">{summary}</p>
         </div>
       )}
 
       <div className="grid md:grid-cols-2 gap-4">
-        {/* Strengths */}
         <ListCard
-          title="✅ Strengths"
+          title="Strengths"
           items={review.strengths}
           itemClass="text-emerald-700 bg-emerald-50 border border-emerald-100"
         />
-
-        {/* Weaknesses */}
         <ListCard
-          title="⚠️ Weaknesses"
+          title="Weaknesses"
           items={review.weaknesses}
           itemClass="text-red-700 bg-red-50 border border-red-100"
         />
       </div>
 
-      {/* Improvements */}
       <div className="card p-6">
-        <h2 className="font-semibold text-surface-900 mb-4 flex items-center gap-2">
-          <span>🚀</span> Actionable Improvements
-        </h2>
+        <h2 className="font-semibold text-surface-900 mb-4">Actionable Improvements</h2>
         <ol className="space-y-3">
           {review.improvements.map((item, i) => (
             <li key={i} className="flex gap-3">
@@ -102,11 +95,8 @@ export default async function AnalysisPage({
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
-        {/* Keywords found */}
         <div className="card p-6">
-          <h2 className="font-semibold text-surface-900 mb-3 flex items-center gap-2">
-            <span>🔑</span> Keywords Found
-          </h2>
+          <h2 className="font-semibold text-surface-900 mb-3">Keywords Found</h2>
           <div className="flex flex-wrap gap-2">
             {review.keywordMatches.map((kw) => (
               <span key={kw} className="badge badge-success">{kw}</span>
@@ -114,11 +104,8 @@ export default async function AnalysisPage({
           </div>
         </div>
 
-        {/* Missing keywords */}
         <div className="card p-6">
-          <h2 className="font-semibold text-surface-900 mb-3 flex items-center gap-2">
-            <span>❌</span> Missing Keywords
-          </h2>
+          <h2 className="font-semibold text-surface-900 mb-3">Missing Keywords</h2>
           <div className="flex flex-wrap gap-2">
             {review.missingKeywords.map((kw) => (
               <span key={kw} className="badge badge-danger">{kw}</span>
@@ -127,14 +114,12 @@ export default async function AnalysisPage({
         </div>
       </div>
 
-      {/* Job match details */}
       {review.jobDescription && (
-        <div className="card p-6 border-brand-200 bg-brand-50/30">
-          <h2 className="font-semibold text-surface-900 mb-1 flex items-center gap-2">
-            <span>📋</span> Job Description Match
-          </h2>
+        <div className="card p-6">
+          <h2 className="font-semibold text-surface-900 mb-1">Job Description Match</h2>
           <p className="text-xs text-surface-500 mb-4">
-            Match score: <span className={`font-bold ${getScoreColor(review.jobDescription.matchScore)}`}>
+            Match score:{" "}
+            <span className={`font-bold ${getScoreColor(review.jobDescription.matchScore)}`}>
               {review.jobDescription.matchScore}%
             </span>
           </p>
@@ -144,13 +129,10 @@ export default async function AnalysisPage({
         </div>
       )}
 
-      {/* Formatting feedback */}
-      {ai.formattingFeedback && (
+      {formattingFeedback && (
         <div className="card p-6">
-          <h2 className="font-semibold text-surface-900 mb-3 flex items-center gap-2">
-            <span>📐</span> Formatting Feedback
-          </h2>
-          <p className="text-sm text-surface-600 leading-relaxed">{ai.formattingFeedback as string}</p>
+          <h2 className="font-semibold text-surface-900 mb-3">Formatting Feedback</h2>
+          <p className="text-sm text-surface-600 leading-relaxed">{formattingFeedback}</p>
         </div>
       )}
     </div>
